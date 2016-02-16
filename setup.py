@@ -9,6 +9,6 @@ setup(name = 'BlockEx',
       description = 'Parsing text with blocks of regexes',
       author = 'Masa Jow',
       author_email = 'shigmas@gmail.com',
-      download_url="https://github.com/shigmas/BlockEx/tarball/master"
+      download_url="https://github.com/shigmas/BlockEx/tarball/master",
       packages = ['BlockEx'],
 )

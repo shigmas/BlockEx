@@ -7,5 +7,4 @@ setup(name = 'BlockEx',
       description = 'Parsing text with blocks of regexes',
       author = 'Masa Jow',
       author_email = 'shigmas@gmail.com',
-      py_modules=['BoockEx'],
 )

@@ -7,10 +7,7 @@ class StreamParser(object):
 
     def __init__(self):
         self.blockMatchers = []
-        self.currentBlockMatcher = None
-        self.encoding = 'utf-8'
-        self.inputStream = None
-        self.outputStream = None
+        self.reset()
 
     def reset(self):
         for matcher in self.blockMatchers:
@@ -19,6 +16,8 @@ class StreamParser(object):
         self.encoding = 'utf-8'
         self.inputStream = None
         self.outputStream = None
+        self.status = 0
+        self.reason = None
         
     def setMatchers(self, matchers):
         self.blockMatchers = matchers
@@ -79,9 +78,14 @@ class UrlStreamParser(StreamParser):
         self.client = http.client.HTTPConnection(host)
 
     def setPath(self, path):
+        self.reset()
         req = self.client.request('GET', path)
         resp = self.client.getresponse()
-        self.reset()
+        self.status = resp.status
+        self.reason = resp.reason
+    
+        if self.status != 200:
+            return
 
         # Get the encoding
         contentType = resp.getheader('Content-Type')

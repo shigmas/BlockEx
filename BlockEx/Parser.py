@@ -1,5 +1,6 @@
 import http.client
 
+import ssl
 import re
 import types
 
@@ -18,6 +19,8 @@ class StreamParser(object):
         self.outputStream = None
         self.status = 0
         self.reason = None
+        self.forceConnectionClose = False
+
         
     def setMatchers(self, matchers):
         self.blockMatchers = matchers
@@ -29,7 +32,7 @@ class StreamParser(object):
         # for concrete subclasses that want data from the line (versus the ones
         # that only want to read the file in and write it out), we have this hook
         # to parse out the line.
-        pass
+        return False
 
     def parse(self):
         line = self.inputStream.readline()
@@ -40,7 +43,10 @@ class StreamParser(object):
             if self.currentBlockMatcher is not None and \
                self.currentBlockMatcher.wantsLine(lineData):
                 line = self.currentBlockMatcher.processLine(lineData)
-                self._handleLine(self.currentBlockMatcher)
+                shouldExit = self._handleLine(self.currentBlockMatcher)
+                if shouldExit is not None and shouldExit:
+                    self.completeParsing()
+                    return
             else: # go through all the blocks to see
                 newMatcher = False
                 for matcher in self.blockMatchers:
@@ -48,7 +54,10 @@ class StreamParser(object):
                         self.currentBlockMatcher = matcher
                         newMatcher = True
                         line = matcher.processLine(lineData)
-                        self._handleLine(self.currentBlockMatcher)
+                        shouldExit = self._handleLine(self.currentBlockMatcher)
+                        if shouldExit is not None and shouldExit:
+                            self.completeParsing()
+                            return
                         if matcher.matchexFound() and not matcher.allowNext():
                             break
                 if not newMatcher:
@@ -72,10 +81,15 @@ class FileStreamParser(StreamParser):
             self.outputStream.close()
 
 class UrlStreamParser(StreamParser):
-    def __init__(self, host):
+    def __init__(self, host, isSecure=False):
         super(UrlStreamParser, self).__init__()
         # default type. What we use if we can't get it from the HTTP headers
-        self.client = http.client.HTTPConnection(host)
+        if isSecure:
+            context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+            context.verify_mode = ssl.CERT_NONE
+            self.client = http.client.HTTPSConnection(host, context=context)
+        else:
+            self.client = http.client.HTTPConnection(host)
 
     def setPath(self, path):
         self.reset()
@@ -83,8 +97,8 @@ class UrlStreamParser(StreamParser):
         resp = self.client.getresponse()
         self.status = resp.status
         self.reason = resp.reason
-    
         if self.status != 200:
+            print('Error status: %s' % self.status)
             return
 
         # Get the encoding
@@ -99,5 +113,8 @@ class UrlStreamParser(StreamParser):
         self.inputStream = resp
         
     def completeParsing(self):
+        # Read the rest of the data 
+        if not self.forceConnectionClose:
+            self.inputStream.read()
         self.inputStream.close()
 

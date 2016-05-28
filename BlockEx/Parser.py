@@ -94,11 +94,15 @@ class UrlStreamParser(StreamParser):
     def setPath(self, path):
         self.reset()
         req = self.client.request('GET', path)
-        resp = self.client.getresponse()
+        try:
+            resp = self.client.getresponse()
+        except http.client.ResponseNotReady as error:
+            print('ERROR: Response not ready for %s: %s' % (path, error))
+            return
         self.status = resp.status
         self.reason = resp.reason
         if self.status != 200:
-            print('Error status: %s' % self.status)
+            print('ERROR status for %s: %s' % (path, self.status))
             return
 
         # Get the encoding

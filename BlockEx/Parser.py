@@ -90,20 +90,29 @@ class UrlStreamParser(StreamParser):
             self.client = http.client.HTTPSConnection(host, context=context)
         else:
             self.client = http.client.HTTPConnection(host)
-
+              
     def setPath(self, path):
         self.reset()
         req = self.client.request('GET', path)
+        resp = None
         try:
             resp = self.client.getresponse()
         except http.client.ResponseNotReady as error:
+            if resp is not None:
+                resp.read()
+            # Some errors aren't entirely ERROR-worthy
             print('ERROR: Response not ready for %s: %s' % (path, error))
-            return
+            return (error, None)
+
         self.status = resp.status
         self.reason = resp.reason
         if self.status != 200:
-            print('ERROR status for %s: %s' % (path, self.status))
-            return
+            if self.status == 301 or self.status == 302:
+                # Read the rest of the body
+                resp.read()
+                return (self.status, resp.getheader('Location',None))
+            else:
+                return (self.status, resp.reason)
 
         # Get the encoding
         contentType = resp.getheader('Content-Type')
@@ -115,6 +124,7 @@ class UrlStreamParser(StreamParser):
                     encoding = charTypeParts[1]
                     self.encoding = encoding
         self.inputStream = resp
+        return (self.status, None)
         
     def completeParsing(self):
         # Read the rest of the data 

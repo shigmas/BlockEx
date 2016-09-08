@@ -4,6 +4,18 @@ import ssl
 import re
 import types
 
+
+class LineBufferable(object):
+    def __init__(self):
+        self._currentLineNumber = 0
+        self._lines = []
+
+    def bufferLine(self, line):
+        self._lines.append(line)
+        self._currentLineNumber += 1
+        
+
+
 class StreamParser(object):
 
     def __init__(self):
@@ -37,9 +49,13 @@ class StreamParser(object):
     def parse(self):
         line = self.inputStream.readline()
         while line:
-            # if line is a byte-type, we need to convert it to unicode. But,
-            # ATM, I want to know what types.Bytes is.
-            lineData = str(line, encoding=self.encoding)
+            # if line is a byte-type, we need to convert it to unicode. I believe
+            # readline was returning bytes (Python 2.x?), but if it returns
+            # a string, we don't need convert again.
+            if isinstance(line,str):
+                lineData = line
+            else:
+                lineData = str(line, encoding=self.encoding)
             if self.currentBlockMatcher is not None and \
                self.currentBlockMatcher.wantsLine(lineData):
                 line = self.currentBlockMatcher.processLine(lineData)
@@ -70,17 +86,17 @@ class FileStreamParser(StreamParser):
     def __init__(self, path, process=True):
         super(FileStreamParser, self).__init__()
         self.path = path
-        self.inputStream = file(self.path,"r")
+        self.inputStream = open(self.path,"r")
         if process:
             self.newPath = path + ".new"
-            self.outputStream = file(self.newPath,"w")
+            self.outputStream = open(self.newPath,"w")
 
     def completeParsing(self):
         self.inputStream.close()
         if self.outputStream:
             self.outputStream.close()
 
-class UrlStreamParser(StreamParser):
+class UrlStreamParser(StreamParser, LineBufferable):
     def __init__(self, host, isSecure=False):
         super(UrlStreamParser, self).__init__()
         # default type. What we use if we can't get it from the HTTP headers

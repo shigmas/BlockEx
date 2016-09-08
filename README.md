@@ -39,7 +39,8 @@ There are two public facing objects:
 StreamParser has two subclasses, FileStreamParser and UrlStreamParser, or you can
 write your own. Your Parser must override _handleLine, which takes a 'matcher' is
 parameter. The matcher is an instance of BlockBase or subclass that you pass into
-the StreamParser init. (Using a delegate woult be 
+the StreamParser init. (Using a delegate would be a good idea, but there are some
+other features that are more needed.)
 ## BlockBase
 The BlockBase's init takes list of opening regular expressions, a PatternMatchex,
 which is the 'main' regular expression, and an ending regular expression, which

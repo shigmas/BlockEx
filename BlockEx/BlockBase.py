@@ -46,12 +46,6 @@ class BlockBase(object):
     def getUpdatedLine(self):
         return self.updatedLine
 
-    # Returns true if this matcher will allow the next to process. This is true
-    # if we don't have an opening block, since, otherwise, we'd never allow
-    # other matchers to get a chance.
-    def allowNext(self):
-        return len(self.openingRegexes) == 0
-
     def matchexFound(self):
         return self.blockMatchex.matchFound
 
@@ -66,9 +60,10 @@ class BlockBase(object):
 
             return True
         else:
-            return self.DefaultBlockState
+            return False
 
-    # This is a little complex, but...
+    # Return True if we want to set this BlockBase to be the current or to keep
+    # it the current one. BlockEx.MatchEx to process the line.
     # If the line makes us (or keeps us) the active matcher, return true.
     def wantsLine(self, line):
         if self.currentState == self.DefaultBlockState:
@@ -79,32 +74,50 @@ class BlockBase(object):
             else:
                 return True
         elif self.currentState == self.OpeningBlockState:
-            if self._matchOpening(line) == self.DefaultBlockState:
+            if not self._matchOpening(line):
+                self.currentState = self.resetState
                 return False
             else:
                 return True
         elif self.currentState == self.InsideBlockState:
-            # If we don't have an opening line, then we see if the main match
-            # to see if we want
+            # There's only one possible match inside the block, but there might
+            # be other lines inside that don't match, so we 'want' the line until
+            # we hit the closing.
+
+            # If we don't have any opening regexes, we don't want to be (or
+            # become) the current matcher.
             if (self.resetState == self.InsideBlockState) and \
-               not self.blockMatchex.blockRegex.match(line):
+               not self.blockMatchex.testMatch(line):
                 return False
-            # Inside the block, the state doesn't change unless we hit the
-            # end of the block
+
+            # Inside the block, if we've hit the ending regex, break out
             if self.endingRegex and self.endingRegex.match(line):
                 self.currentState = self.endState
-                return True
+                return False
+
+            # If we're inside the opening, stay inside the opening and stay
+            # the current matcher.
             return True
         elif self.currentState == self.ClosingBlockState:
             # If we've reached the closing, reset so subsequent matchers
-            # (including ourselves) can have a chance at processing
+            # (including ourselves) can have a chance at processing if we're
+            # non-cooperative.
             self.currentState = self.DefaultBlockState
             return False
+
+    # Simple test to see if we should pass off to the handler
+    def getsLine(self, line):
+        return self.currentState == self.InsideBlockState and \
+            self.blockMatchex.testMatch(line)
+
+    def _processLine(self, line):
+        pass
 
     # Unless we are inside of a block, we'll return the line as it
     # is.  If we're inside the block, we hand it to the blockMatchex. That will
     # do any number of things, depending on the matchex.
     def processLine(self, line):
+        self._processLine(line)
         if self.currentState == self.DefaultBlockState or \
            self.currentState == self.OpeningBlockState:
             return line
@@ -129,6 +142,7 @@ class BlockBase(object):
             print('unknown: %s' % line)
         return line
 
+# Some test code for pbxproject files.
 class BuildSettingsBlock(BlockBase):
     def __init__(self):
         opening = [r'(\s+)\w+\s\/\*\sDebug\s\*\/\s=\s{.*',

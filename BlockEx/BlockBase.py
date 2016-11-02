@@ -32,9 +32,8 @@ class BlockBase(object):
             self.endState = self.InsideBlockState
 
         self.reset()
-
+        
     def reset(self):
-
         self.currentState = self.resetState
         self.openingRegexesIndex = 0
         self.updatedLine = None
@@ -102,7 +101,7 @@ class BlockBase(object):
             # If we've reached the closing, reset so subsequent matchers
             # (including ourselves) can have a chance at processing if we're
             # non-cooperative.
-            self.currentState = self.DefaultBlockState
+            self.currentState = self.resetState
             return False
 
     # Simple test to see if we should pass off to the handler

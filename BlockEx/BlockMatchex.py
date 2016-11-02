@@ -113,21 +113,17 @@ class MultiPatternMatchex(FindAllMatchex):
     # FindAll's matchLine calls us.
     def _processLine(self, matchObj, line):
         numMatches = len(matchObj)
-        self._patternRegexString = self._buildMatchString(numMatches)
-        patternMatches = re.match(self._patternRegexString,line)
-        numGroups = 0
-        if patternMatches is not None:
-            numGroups = len(patternMatches.groups())
-        if numGroups > 0:
+        matchesIt = self.blockRegex.finditer(line)
+        if matchesIt:
             groups = []
             matchStrings = []
-            for i in range(1, numGroups):
-                matchStr = patternMatches.group(i)
+            for mIt in matchesIt:
+                matchStr = mIt.groups()[0]
                 matchStrings.append(matchStr)
                 #print('pair: %s, %d - %d' % (matchStr, patternMatches.start(i),
                 #                             patternMatches.end(i)))
-                groups.append((matchStr, (patternMatches.start(i),
-                                          patternMatches.end(i))))
+                groups.append((matchStr, (mIt.start(),
+                                          mIt.end())))
             self.groups = groups
             self.matchStrings = matchStrings
 

@@ -8,7 +8,7 @@ import types
 class StreamContext(object):
     def __init__(self):
         self._lines = []
-        #self._outputStream = open('webout',"w", encoding='utf-8')
+        self._outputStream = open('webout',"w", encoding='utf-8')
         
     def bufferLine(self, line):
         self._lines.append(line)

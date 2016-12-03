@@ -10,10 +10,14 @@ class BlockMatchex(object):
         self._flags = flags
         # calls the property setter
         self.blockRegexString = blockRegex
-        if self._flags is not None:
-            self.blockRegex = re.compile(blockRegex, self._flags)
-        else:
-            self.blockRegex = re.compile(blockRegex)
+        try:
+            if self._flags is not None:
+                self.blockRegex = re.compile(blockRegex, self._flags)
+            else:
+                self.blockRegex = re.compile(blockRegex)
+        except:
+            print('EXCEPTION: Bad expression [%s]' % blockRegex)
+            print('BlockMatchex is not complete')
         self.matchFound = False
         self.previousLine = None
 

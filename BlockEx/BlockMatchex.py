@@ -66,7 +66,6 @@ class PatternMatchex(BlockMatchex):
         if numGroups > 0:
             for i in (1, len(matchObj.groups())):
                 matchStr = matchObj.group(i)
-                print
                 matchStrings.append(matchStr)
                 #print('pair: %s, %d - %d' % (matchStr, matchObj.start(i),
                 #                             matchObj.end(i)))

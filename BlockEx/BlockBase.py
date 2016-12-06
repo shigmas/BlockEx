@@ -16,7 +16,8 @@ class BlockBase(object):
         self.openingRegexStrings = openingRegexStrings
         self.openingRegexes = []
         for reString in openingRegexStrings:
-            self.openingRegexes.append(re.compile(reString))
+            if len(reString) > 0:
+                self.openingRegexes.append(re.compile(reString))
         if len(self.openingRegexes) == 0:
             # this skips the default and opening states. If there's no closing
             # regex, we'll never hit that either
@@ -24,7 +25,7 @@ class BlockBase(object):
         else:
             self.resetState = self.DefaultBlockState
         self.blockMatchex = blockMatchex
-        if endingRegexString is not None:
+        if endingRegexString is not None and len(endingRegexString) > 0:
             self.endingRegex = re.compile(endingRegexString)
             self.endState = self.ClosingBlockState
         else:
@@ -109,6 +110,9 @@ class BlockBase(object):
         return self.currentState == self.InsideBlockState and \
             self.blockMatchex.testMatch(line)
 
+    # Callback when we hit the regular expression. We can manipulate it if
+    # we want to change it, but can also be useful for debugging, when we want
+    # to see the actual match.
     def _processLine(self, line):
         pass
 

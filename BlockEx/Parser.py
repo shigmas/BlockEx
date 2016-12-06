@@ -7,6 +7,9 @@ import types
 
 class StreamContext(object):
     def __init__(self):
+        self.contextReset()
+
+    def contextReset(self):
         self._lines = []
         self._outputStream = open('webout',"w", encoding='utf-8')
         
@@ -25,7 +28,8 @@ class StreamContext(object):
             return None
 
     def closeContext(self):
-        self._outputStream.close()
+        #self._outputStream.close()
+        pass
 
 class StreamParser(object):
     def __init__(self):
@@ -127,7 +131,8 @@ class UrlStreamParser(StreamParser, StreamContext):
         # super(UrlStreamParser, self).__init__()
         StreamParser.__init__(self)
         StreamContext.__init__(self)
-
+        self.host = host
+        self.isSecure = isSecure
         # default type. What we use if we can't get it from the HTTP headers
         if isSecure:
             context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
@@ -135,10 +140,26 @@ class UrlStreamParser(StreamParser, StreamContext):
             self.client = http.client.HTTPSConnection(host, context=context)
         else:
             self.client = http.client.HTTPConnection(host)
-              
+
+    # Sets the URL path for the parse() function. We've set the host in the
+    # constructor, so this resets everything, and reads from the specified
+    # URL from that hose.
+    # Returns: (HTTP status, Reason). 200 means, okay.
+    # Be sure to check the return code for this. The URL may not be valid, or
+    # it may have moved
+    # 
+    # 
     def setPath(self, path):
         self.reset()
-        req = self.client.request('GET', path)
+        # Since we're a StreamContext
+        self.contextReset()
+        try:
+            req = self.client.request('GET', path)
+        except ConnectionRefusedError:
+            extra = ''
+            if self.isSecure:
+                extra = '(over SSL)'
+            print('Failed to connect to %s %s' % (self.host, extra))
         resp = None
         try:
             resp = self.client.getresponse()
@@ -168,6 +189,7 @@ class UrlStreamParser(StreamParser, StreamContext):
                 if len(charTypeParts) == 2:
                     encoding = charTypeParts[1]
                     self.encoding = encoding
+
         self.inputStream = resp
         return (self.status, None)
         

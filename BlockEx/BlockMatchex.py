@@ -1,4 +1,6 @@
-import re, types
+import re
+import types
+
 
 # A Regular expression and what to do with it.
 class BlockMatchex(object):
@@ -6,10 +8,9 @@ class BlockMatchex(object):
     # o indentRegex: regex to capture the indentation so that we can apply the
     #   same indentation pattern to the lines that we add
     # o blockRegex: pattern for the line we are hoping to modify
-    def __init__(self, blockRegex, flags =  None):
+    def __init__(self, blockRegex, flags=None):
         self._flags = flags
         # calls the property setter
-        self.blockRegexString = blockRegex
         try:
             if self._flags is not None:
                 self.blockRegex = re.compile(blockRegex, self._flags)
@@ -24,8 +25,8 @@ class BlockMatchex(object):
     def reset(self):
         self.matchFound = False
         self.previousLine = None
-        
-    # Takes the regex match object, and line 
+
+    # Takes the regex match object, and line
     def _processLine(self, matchObj, line):
         return line
 
@@ -41,20 +42,24 @@ class BlockMatchex(object):
     def _match(self, line):
         return self.blockRegex.match(line)
 
-    def matchLine(self, line):
+    def matchLine(self, line, previousMatchResult):
         self.previousLine = line
-        match = self.blockRegex.match(line)
+        if previousMatchResult is None:
+            match = self.blockRegex.match(line)
+        else:
+            match = previousMatchResult
         if match:
             self.matchFound = True
             return self._processLine(match, line)
         return line
 
+
 # On a match on the regular expression, gets the groups marked in the regular
 # expression.
-# XXX - We should also just have a boolean in case we just want to know if there
-# was a match and we don't care about what was in the match
+# XXX - We should also just have a boolean in case we just want to know if
+# there was a match and we don't care about what was in the match
 class PatternMatchex(BlockMatchex):
-    def __init__(self, blockRegex, flags =  None):
+    def __init__(self, blockRegex, flags=None):
         super(PatternMatchex, self).__init__(blockRegex, flags)
         self.matchStrings = []
         self.groups = []
@@ -67,17 +72,16 @@ class PatternMatchex(BlockMatchex):
             for i in (1, len(matchObj.groups())):
                 matchStr = matchObj.group(i)
                 matchStrings.append(matchStr)
-                #print('pair: %s, %d - %d' % (matchStr, matchObj.start(i),
-                #                             matchObj.end(i)))
-                groups.append((matchStr, (matchObj.start(i),matchObj.end(i))))
+                groups.append((matchStr, (matchObj.start(i), matchObj.end(i))))
             self.groups = groups
             self.matchStrings = matchStrings
 
         return line
 
+
 # If we just want to find all the occurences
 class FindAllMatchex(BlockMatchex):
-    def __init__(self, blockRegex, findAll=True, flags =  None):
+    def __init__(self, blockRegex, findAll=True, flags=None):
         super(FindAllMatchex, self).__init__(blockRegex, flags)
         self.groups = []
 
@@ -87,7 +91,8 @@ class FindAllMatchex(BlockMatchex):
         else:
             return True
 
-    def matchLine(self, line):
+    def matchLine(self, line, previousMatchResult):
+        # We do another match, so we don't use the previousMatchResult
         self.previousLine = line
         matches = self.blockRegex.findall(line)
         if matches:
@@ -96,11 +101,12 @@ class FindAllMatchex(BlockMatchex):
             return self._processLine(matches, line)
         return line
 
+
 # We find all the patterns that match the expression (like FindAllMatchex), and
 # then create a new expression to find the locations of all those matches
 # (like PatternMatchex).
 class MultiPatternMatchex(FindAllMatchex):
-    def __init__(self, blockRegex, flags =  None):
+    def __init__(self, blockRegex, flags=None):
         super(MultiPatternMatchex, self).__init__(blockRegex, flags)
         self._secondaryMatchString = None
         self.groups = []
@@ -108,14 +114,14 @@ class MultiPatternMatchex(FindAllMatchex):
 
     def _buildMatchString(self, numMatches):
         regex = '.*'
+        originalRegexString = self.blockRegex.pattern
         for i in range(0, numMatches):
-            regex += self.blockRegexString + '.*'
+            regex += originalRegexString + '.*'
 
         return regex
 
     # FindAll's matchLine calls us.
     def _processLine(self, matchObj, line):
-        numMatches = len(matchObj)
         matchesIt = self.blockRegex.finditer(line)
         if matchesIt:
             groups = []
@@ -123,14 +129,13 @@ class MultiPatternMatchex(FindAllMatchex):
             for mIt in matchesIt:
                 matchStr = mIt.groups()[0]
                 matchStrings.append(matchStr)
-                #print('pair: %s, %d - %d' % (matchStr, patternMatches.start(i),
-                #                             patternMatches.end(i)))
                 groups.append((matchStr, (mIt.start(),
                                           mIt.end())))
             self.groups = groups
             self.matchStrings = matchStrings
 
         return line
+
 
 # Matchex to find a key in a string and check the values. If it doesn't contain
 # all the values we need, we add them. If the line doesn't exist at all, we
@@ -156,7 +161,7 @@ class DictMatchex(BlockMatchex):
         self.expectedValues = expectedValues
 
     def _getValueString(self):
-        if type(self.expectedValues) is types.ListType:
+        if isinstance(self.expectedValues, types.ListType):
             newVals = self.expectedValues[:]
             newVals.append(self.value)
             return ' '.join(newVals)
@@ -172,7 +177,7 @@ class DictMatchex(BlockMatchex):
         if not hasVal:
             vals.append(self.value)
             newVals = ' '.join(vals)
-            return line.replace(oldVals,newVals)
+            return line.replace(oldVals, newVals)
 
         return line
 
@@ -181,4 +186,5 @@ class DictMatchex(BlockMatchex):
         prevIndent = prevMatch.group(1)
         # For bool values, we don't want to quote them.  But, since we're only
         # doing this for one type of value so far, let's not compliate things.
-        return '%s%s = \"%s\";\n' % (prevIndent, self.key, self._getValueString())
+        return '%s%s = \"%s\";\n' % (prevIndent, self.key,
+                                     self._getValueString())

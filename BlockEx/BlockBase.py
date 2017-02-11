@@ -1,199 +1,168 @@
 import re
 
 class BlockBase(object):
-    DefaultBlockState = 0       # Not in the block
-    OpeningBlockState = 1       # Block is possibly open
-    InsideBlockState  = 2       # We're inside the block
-    ClosingBlockState = 3       # Not in the block
+    OpeningBlockState = 0       # Block is possibly open
+    InsideBlockState  = 1       # We're inside the block
+    ClosingBlockState = 2       # Not in the block
 
     # Construct a BlockBase.
-    # startingRegexes: sequence of regexes that signifies the start of the block
+    # startingRegexes: sequence of regexes that signifies the start of the
+    # block
     # blockRegex: the line we are looking for in the regex
     # endingRegex: the regex that signifies the end of the block
     def __init__(self, openingRegexStrings, blockMatchex, endingRegexString):
-        self.currentState = self.DefaultBlockState
-        # save this for bookkeeping
-        self.openingRegexStrings = openingRegexStrings
         self.openingRegexes = []
         for reString in openingRegexStrings:
             if len(reString) > 0:
                 self.openingRegexes.append(re.compile(reString))
-        if len(self.openingRegexes) == 0:
-            # this skips the default and opening states. If there's no closing
-            # regex, we'll never hit that either
-            self.resetState = self.InsideBlockState
-        else:
-            self.resetState = self.DefaultBlockState
         self.blockMatchex = blockMatchex
         if endingRegexString is not None and len(endingRegexString) > 0:
             self.endingRegex = re.compile(endingRegexString)
-            self.endState = self.ClosingBlockState
         else:
             self.endingRegex = None
-            self.endState = self.InsideBlockState
-
         self.reset()
-        
+        self.delegate = None
+
     def reset(self):
-        self.currentState = self.resetState
-        self.openingRegexesIndex = 0
-        self.updatedLine = None
+        if self.openingRegexes is not None:
+            self._matchIndex = 0
+        else:
+            self._matchIndex = -1
+
         self.blockMatchex.reset()
-        
-    def getCurrentState(self):
-        return self.currentState
 
-    def getUpdatedLine(self):
-        return self.updatedLine
+    def getState(self):
+        # Similar to GetRegex, but a little simpler.
+        if self._matchIndex < 0:
+            return self.InsideBlockState
+        numOpening = len(self.openingRegexes)
+        if self._matchIndex < numOpening:
+            return self.OpeningBlockState
+        elif self._matchIndex == numOpening:
+            return self.InsideBlockState
+        elif self._matchIndex == numOpening + 1 and \
+             self.endingRegex is not None:
+            return self.ClosingBlockState
+        else:
+            # This is an error. Our index stepped past our regexes
+            raise 'Index (%d) is greater than our regexes' % self._matchIndex
 
-    def matchexFound(self):
-        return self.blockMatchex.matchFound
+    def _getOpeningRegex(self):
+        if self._matchIndex < 0:
+            return None
+        # Uses the current index to see which match we're currently testing
+        numOpening = len(self.openingRegexes)
+        if self._matchIndex < numOpening:
+            return self.openingRegexes[self._matchIndex]
+        else:
+            # This is an error. Our index stepped past our regexes
+            raise 'Index (%d) is greater than our regexes' % self._matchIndex
 
-    def _matchOpening(self, line):
-        match = self.openingRegexes[self.openingRegexesIndex].match(line)
-        if match:
-            if len(self.openingRegexes) == self.openingRegexesIndex + 1:
-                self.currentState = self.InsideBlockState
+    # Return True if we want to set or keep this BlockBase to be the current
+    # or to continue processing with this block
+    def wantsLine(self, line):
+        state = self.getState()
+        if state == self.OpeningBlockState:
+            # If we have opening regexes, check the match. If successful,
+            # increment and return true. Else, reset. If xthere are no opening
+            # regexes, state is already InsideBlockState
+            regex = self._getOpeningRegex()
+            match = regex.match(line)
+
+            if match is None:
+                self.reset()
+                return False
             else:
-                self.currentState = self.OpeningBlockState
-                self.openingRegexesIndex = self.openingRegexesIndex + 1
-
+                if self.delegate:
+                    self.delegate.onOpeningMatch(self._matchIndex, match)
+                self._matchIndex += 1
+                return True
+        elif state == self.InsideBlockState:
+            # There's only one possible match inside the block, but there might
+            # be other lines inside that don't match, so we 'want' the line
+            # until we hit the closing. For now, we return True. ProcessLine()
+            # check to see if we should process the line by checking if we
+            # match and passing it to the matchex.
             return True
         else:
+            # This function should only be handling theOpening and Inside
+            # states!
+            print('WARNING: Unhandled states in WantsLine()!!!')
             return False
 
-    # Return True if we want to set this BlockBase to be the current or to keep
-    # it the current one. BlockEx.MatchEx to process the line.
-    # If the line makes us (or keeps us) the active matcher, return true.
-    def wantsLine(self, line):
-        if self.currentState == self.DefaultBlockState:
-            # make sure the opening index is reset
-            self.openingRegexesIndex = 0
-            if self._matchOpening(line) == self.DefaultBlockState:
-                return False
-            else:
-                return True
-        elif self.currentState == self.OpeningBlockState:
-            if not self._matchOpening(line):
-                self.currentState = self.resetState
-                return False
-            else:
-                return True
-        elif self.currentState == self.InsideBlockState:
-            # There's only one possible match inside the block, but there might
-            # be other lines inside that don't match, so we 'want' the line until
-            # we hit the closing.
-
-            # If we don't have any opening regexes, we don't want to be (or
-            # become) the current matcher.
-            if (self.resetState == self.InsideBlockState) and \
-               not self.blockMatchex.testMatch(line):
-                return False
-
-            # Inside the block, if we've hit the ending regex, break out
-            if self.endingRegex and self.endingRegex.match(line):
-                self.currentState = self.endState
-                return False
-
-            # If we're inside the opening, stay inside the opening and stay
-            # the current matcher.
-            return True
-        elif self.currentState == self.ClosingBlockState:
-            # If we've reached the closing, reset so subsequent matchers
-            # (including ourselves) can have a chance at processing if we're
-            # non-cooperative.
-            self.currentState = self.resetState
-            return False
-
-    # Simple test to see if we should pass off to the handler
-    def getsLine(self, line):
-        return self.currentState == self.InsideBlockState and \
-            self.blockMatchex.testMatch(line)
-
-    # Callback when we hit the regular expression. We can manipulate it if
-    # we want to change it, but can also be useful for debugging, when we want
-    # to see the actual match.
+    # Callback for processLine(), which is called whenever we are inside the
+    # block, whether or not it matches the regular expression. We ignore any
+    # return values, so this is really just for debugging
     def _processLine(self, line):
         pass
 
     # Unless we are inside of a block, we'll return the line as it
     # is.  If we're inside the block, we hand it to the blockMatchex. That will
     # do any number of things, depending on the matchex.
+    # Returns:
+    # 1. a boolean if we successfully processed the line (whatever that may
+    #    be,
+    # 2. The updated line, which may be modified, or the same line, if we are
+    #    just looking for the match.
     def processLine(self, line):
         self._processLine(line)
-        if self.currentState == self.DefaultBlockState or \
-           self.currentState == self.OpeningBlockState:
-            return line
-        elif self.currentState == self.InsideBlockState:
-            # This might be the exact same line
-            updated = self.blockMatchex.matchLine(line)
-            return updated
-        elif self.currentState == self.ClosingBlockState:
-            if not self.blockMatchex.matchFound:
-                # We didn't find a match for the block that we were looking
-                # for, so we create a new line.
-                completeLine = self.blockMatchex.getCompleteLine()
-                if completeLine is not None:
-                    updated = '%s%s' % (completeLine,line)
-                    return updated
-                else:
-                    return line
-            else:
-                return line
-            self.currentState = self.DefaultBlockState
+        state = self.getState()
+        didMatch = False
+        if state != self.InsideBlockState:
+            print('WARNING: Calling processLine when not inside the block')
+            return didMatch, line
         else:
-            print('unknown: %s' % line)
-        return line
+            match = self.blockMatchex.testMatch(line)
+            if match is not None:
+                didMatch = True
+                if self.delegate is not None:
+                    self.delegate.onRegexMatch(match)
+                # updated may or may not be the same as line. True tells us
+                # that we had a match.
+                updated = self.blockMatchex.matchLine(line, match)
+                return didMatch, updated
+            else:
+                return didMatch, line
 
-# Some test code for pbxproject files.
-class BuildSettingsBlock(BlockBase):
-    def __init__(self):
-        opening = [r'(\s+)\w+\s\/\*\sDebug\s\*\/\s=\s{.*',
-                   r'\s+isa\s=\s\w+;',
-                   r'\s+buildSettings\s=\s{']
-        matchString = r'\s+VALID_ARCHS\s+=\s+"(.+)";'
-        indentString = r'(\s+).+;'
-        ending = '\s+};'
-        matchex = BlockMatchex(indentString, matchString, 'VALID_ARCHS',
-                               'x86_64',['arm64','armv7','armv7s'])
+    def isFinished(self, line):
+        state = self.getState()
+        result = False
+        if state == self.InsideBlockState:
+            # We want to see if we've finished processing, which is indicated
+            # by any one of the following conditions
+            # 1. We hit the closing regex, if there is a closing regex
+            # 2. If there is no closing regex, if the matchex had a match.
+            #
+            # The result of this rule is that we can continue sending lines
+            # to the matchex if we provide a closing regex. Otherwise, hitting
+            # the matchex regex means we're done processing.
+            if self.endingRegex is not None:
+                closingMatch = self.endingRegex.match(line)
+                if closingMatch is not None:
+                    if self.delegate is not None:
+                        self.delegate.onClosingMatch(closingMatch)
+                    # Maybe let the Parser call this?
+                    self._finishProcessing(line)
+                    result = True
+                    self.reset()
+            elif self.blockMatchex.matchFound:
+                # Maybe let the Parser call this?
+                self._finishProcessing(line)
+                result = True
+                self.reset()
 
-        super(BuildSettingsBlock,self).__init__(opening, matchex, ending)
+        return result
 
-class PbxParse(object):
-    def __init__(self, path):
-        self.path = path
-        self.newPath = path + ".new"
-        self.blockMatchers = [BuildSettingsBlock()]
-        self.currentBlockMatcher = None
+    def _finishProcessing(self, line):
+        # I'm not exactly sure what I was doing here. We need to
+        # return a new line if we are "processing" e.g. modifying the
+        # line.
 
-    def parse(self):
-        iF = file(self.path,"r")
-        oF = file(self.path + ".new","w")
-        line = iF.readline()
-        while line:
-            if self.currentBlockMatcher is not None and \
-               self.currentBlockMatcher.wantsLine(line):
-                line = self.currentBlockMatcher.processLine(line)
-            else: # go through all the blocks to see 
-                for matcher in self.blockMatchers:
-                    if matcher.wantsLine(line):
-                        self.currentBlockMatcher = matcher
-                        line = matcher.processLine(line)
-                        break
-
-            oF.write(line)
-            line = iF.readline()
-        iF.close()
-        oF.close()
-
-def main(args, stdout, environ):
-#    f = '~/src/tree/futomen/core/FFKit/FFKit.xcodeproj/project.pbxproj'
-    f = args[1]
-    key = 'VALID_ARCHS'
-    x86 = 'x86_64'
-    parser = PbxParse(f)
-    parser.parse()
-    print('all done')
-
-if __name__ == '__main__':
-    main(sys.argv, sys.stdout, os.environ)
+        # We didn't find a match for the block that we were looking
+        # for, so we create a new line.
+        completeLine = self.blockMatchex.getCompleteLine()
+        if completeLine is not None:
+            updated = '%s%s' % (completeLine, line)
+            return updated
+        else:
+            return line

@@ -1,4 +1,8 @@
 # BlockEx
+
+[![Build Status](https://travis-ci.org/shigmas/BlockEx.svg?branch=master)](https://travis-ci.org/shigmas/BlockEx)
+
+
 A regular expression parsing library in Python.
 
 # The problem

@@ -15,7 +15,7 @@ class BuildSettingsBlock(BlockBase):
                    r'\s+buildSettings\s=\s{']
         matchString = r'\s+VALID_ARCHS\s+=\s+"(.+)";'
         indentString = r'(\s+).+;'
-        ending = '\s+};'
+        ending = r'\s+};'
         matchex = DictMatchex(indentString, matchString, 'VALID_ARCHS',
                               'x86_64', ['arm64', 'armv7', 'armv7s'])
 

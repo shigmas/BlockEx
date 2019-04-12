@@ -1,0 +1,4 @@
+.tox
+BlockEx.egg-info
+errors
+__pycache__

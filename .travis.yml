@@ -1,9 +1,32 @@
-language: python
+sudo: false
+
+language:
+  - python
+
 python:
-- '3.5'
+  - '3.6'
+
+env:
+  - TOXENV=py36
+  - TOXENV=flake8
+
+cache:
+  directories:
+    - $(HOME)/.cache/pip
+    - $(TRAVIS_BUILD_DIR)/.tox
 
 install:
-- pip install tox
+  - pip install tox
 
 script:
-- tox
+  - tox
+
+matrix:
+  allow_failes:
+  # Tox will fail right now. Make the change, and re-enable this
+  - env: TOXENV=flake8
+
+notifications:
+  email:
+    on_failure: always
+    on_success: change

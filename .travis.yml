@@ -3,12 +3,17 @@ sudo: false
 language:
   - python
 
-python:
-  - '3.6'
-
-env:
-  - TOXENV=py36
-  - TOXENV=flake8
+matrix:
+  include:
+    - python: '3.5'
+      env: TOXENV=py35
+    - python: '3.6'
+      env: TOXENV=py36
+    - python: '3.7'
+      env: TOXENV=py37
+  allow_failures:
+    # Tox will fail right now. Make the change, and re-enable this
+    - env: TOXENV=flake8
 
 cache:
   directories:
@@ -21,10 +26,6 @@ install:
 script:
   - tox
 
-matrix:
-  allow_failes:
-  # Tox will fail right now. Make the change, and re-enable this
-  - env: TOXENV=flake8
 
 notifications:
   email:

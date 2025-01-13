@@ -1,2 +1,2 @@
 tox==3.8.6
-virtualenv==16.4.3
+virtualenv==20.26.6
